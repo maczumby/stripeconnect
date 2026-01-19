@@ -5,7 +5,8 @@ from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import stripe
 from mautrix.client import Client
 from mautrix.types import TextMessageEventContent, MessageType
@@ -46,6 +47,11 @@ stripe.api_key = config.stripe["secret_key"]
 
 # Initialize FastAPI
 app = FastAPI(title="Matrix LaunchPass - Stripe Connect", version="1.0.0")
+
+# Mount static files directory
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Matrix client (initialized on startup)
 matrix_client: Optional[Client] = None
@@ -508,7 +514,7 @@ async def creator_onboarding(request: Request, username: str = Depends(verify_ad
 
 
 @app.get("/connect/return")
-async def onboarding_return(account_id: str):
+async def onboarding_return(account_id: str, request: Request):
     """
     NEW THING 2: Return URL Endpoint
 
@@ -521,9 +527,33 @@ async def onboarding_return(account_id: str):
         # Look up the creator
         creator_data = get_creator_by_account(account_id)
         if not creator_data:
-            return JSONResponse(
-                status_code=404,
-                content={"success": False, "error": "Creator account not found"}
+            return HTMLResponse(
+                content=f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Error - Filament Connect</title>
+                    <style>
+                        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                               display: flex; align-items: center; justify-content: center; height: 100vh;
+                               margin: 0; background: #f5f5f5; }}
+                        .container {{ background: white; padding: 48px; border-radius: 12px;
+                                     box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }}
+                        h1 {{ color: #c33; margin-bottom: 16px; }}
+                        p {{ color: #666; margin-bottom: 24px; }}
+                        a {{ color: #667eea; text-decoration: none; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>Account Not Found</h1>
+                        <p>We couldn't find your creator account.</p>
+                        <a href="/static/signup.html">Go back to signup</a>
+                    </div>
+                </body>
+                </html>
+                """,
+                status_code=404
             )
 
         creator_id, creator_info = creator_data
@@ -545,14 +575,8 @@ async def onboarding_return(account_id: str):
 
         if charges_enabled:
             print(f"✅ Creator {creator_id} is ready to accept payments!")
-            return {
-                "success": True,
-                "status": "complete",
-                "message": "Onboarding complete! You can now accept payments.",
-                "creator_id": creator_id,
-                "account_id": account_id,
-                "charges_enabled": True
-            }
+            # Redirect to dashboard with creator_id
+            return RedirectResponse(url=f"/static/dashboard.html?creator_id={creator_id}")
         else:
             print(f"⚠️  Creator {creator_id} hasn't finished onboarding")
             # Generate a new onboarding link
@@ -563,15 +587,37 @@ async def onboarding_return(account_id: str):
                 type="account_onboarding",
             )
 
-            return {
-                "success": False,
-                "status": "incomplete",
-                "message": "Please complete your onboarding to start accepting payments.",
-                "creator_id": creator_id,
-                "account_id": account_id,
-                "charges_enabled": False,
-                "retry_url": account_link.url
-            }
+            return HTMLResponse(
+                content=f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Complete Onboarding - Filament Connect</title>
+                    <style>
+                        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                               display: flex; align-items: center; justify-content: center; height: 100vh;
+                               margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }}
+                        .container {{ background: white; padding: 48px; border-radius: 12px;
+                                     box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center; max-width: 500px; }}
+                        h1 {{ color: #1a1a1a; margin-bottom: 16px; }}
+                        p {{ color: #666; margin-bottom: 24px; }}
+                        .button {{ display: inline-block; padding: 16px 48px;
+                                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                  color: white; text-decoration: none; border-radius: 8px;
+                                  font-weight: 600; transition: transform 0.2s; }}
+                        .button:hover {{ transform: translateY(-2px); }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>⚠️ Onboarding Incomplete</h1>
+                        <p>You need to complete your Stripe onboarding before you can accept payments.</p>
+                        <a href="{account_link.url}" class="button">Continue Onboarding</a>
+                    </div>
+                </body>
+                </html>
+                """
+            )
 
     except Exception as e:
         print(f"❌ Error processing return: {e}")
@@ -856,7 +902,7 @@ async def list_creators(username: str = Depends(verify_admin)):
 
 @app.get("/creators/{creator_id}")
 async def get_creator_status(creator_id: str, username: str = Depends(verify_admin)):
-    """Get detailed status for a specific creator"""
+    """Get detailed status for a specific creator (admin only)"""
     try:
         creator = get_creator(creator_id)
         if not creator:
@@ -879,6 +925,36 @@ async def get_creator_status(creator_id: str, username: str = Depends(verify_adm
                 "past_due": account.requirements.past_due if account.requirements else [],
             },
             "loops": creator.get("loops", []),
+        }
+
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/creators/{creator_id}/status")
+async def get_creator_public_status(creator_id: str):
+    """
+    Get creator status without authentication.
+    Used by creators to check their own onboarding status from the dashboard.
+    """
+    try:
+        creator = get_creator(creator_id)
+        if not creator:
+            raise HTTPException(status_code=404, detail=f"Creator {creator_id} not found")
+
+        # Get latest account info from Stripe
+        account = stripe.Account.retrieve(creator["stripe_account_id"])
+
+        return {
+            "creator_id": creator_id,
+            "email": creator["email"],
+            "name": creator.get("name"),
+            "onboarding_complete": account.details_submitted,
+            "charges_enabled": account.charges_enabled,
+            "payouts_enabled": account.payouts_enabled,
+            "stripe_account_id": creator["stripe_account_id"]
         }
 
     except stripe.error.StripeError as e:
@@ -913,23 +989,178 @@ async def generate_creator_login_link(creator_id: str, username: str = Depends(v
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/creators/{creator_id}/products")
+async def create_product_for_creator(creator_id: str, request: Request):
+    """
+    Create a product and price on the creator's connected Stripe account.
+
+    This is used by creators to set up their subscription offerings.
+    After creation, they need to contact Filament team to connect it to their Loop.
+
+    POST body:
+    {
+        "name": "Premium Membership",
+        "description": "Access to premium content",
+        "price": 1000,  # amount in cents
+        "currency": "usd",
+        "interval": "month"  # month or year
+    }
+    """
+    try:
+        creator = get_creator(creator_id)
+        if not creator:
+            raise HTTPException(status_code=404, detail=f"Creator {creator_id} not found")
+
+        if not creator.get("charges_enabled"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Creator {creator_id} must complete onboarding before creating products"
+            )
+
+        stripe_account_id = creator["stripe_account_id"]
+        data = await request.json()
+
+        # Validate required fields
+        name = data.get("name")
+        price = data.get("price")
+        currency = data.get("currency", "usd")
+        interval = data.get("interval", "month")
+        description = data.get("description", "")
+
+        if not name or not price:
+            raise HTTPException(status_code=400, detail="name and price are required")
+
+        if interval not in ["month", "year"]:
+            raise HTTPException(status_code=400, detail="interval must be 'month' or 'year'")
+
+        print(f"\n📦 Creating product for creator {creator_id} on account {stripe_account_id}...")
+
+        # Create product on creator's account
+        product = stripe.Product.create(
+            name=name,
+            description=description,
+            stripe_account=stripe_account_id
+        )
+
+        print(f"✅ Created product: {product.id}")
+
+        # Create recurring price for the product
+        price_obj = stripe.Price.create(
+            product=product.id,
+            unit_amount=int(price),
+            currency=currency,
+            recurring={"interval": interval},
+            stripe_account=stripe_account_id
+        )
+
+        print(f"✅ Created price: {price_obj.id}")
+
+        return {
+            "success": True,
+            "product_id": product.id,
+            "price_id": price_obj.id,
+            "name": name,
+            "amount": price,
+            "currency": currency,
+            "interval": interval,
+            "message": "Product created! Contact the Filament team within 4 working hours to connect it to your Loop."
+        }
+
+    except HTTPException:
+        raise
+    except stripe.error.StripeError as e:
+        print(f"❌ Stripe error creating product: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
+    except Exception as e:
+        print(f"❌ Error creating product: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/creators/{creator_id}/products")
+async def list_creator_products(creator_id: str):
+    """
+    List all products for a creator.
+    No auth required - creators can check their own products.
+    """
+    try:
+        creator = get_creator(creator_id)
+        if not creator:
+            raise HTTPException(status_code=404, detail=f"Creator {creator_id} not found")
+
+        stripe_account_id = creator["stripe_account_id"]
+
+        # Get all products from creator's account
+        products = stripe.Product.list(
+            limit=100,
+            stripe_account=stripe_account_id
+        )
+
+        # Get prices for each product
+        products_with_prices = []
+        for product in products.data:
+            prices = stripe.Price.list(
+                product=product.id,
+                stripe_account=stripe_account_id
+            )
+
+            products_with_prices.append({
+                "product_id": product.id,
+                "name": product.name,
+                "description": product.description,
+                "active": product.active,
+                "prices": [
+                    {
+                        "price_id": price.id,
+                        "amount": price.unit_amount,
+                        "currency": price.currency,
+                        "interval": price.recurring.interval if price.recurring else None
+                    }
+                    for price in prices.data
+                ]
+            })
+
+        return {
+            "creator_id": creator_id,
+            "products": products_with_prices
+        }
+
+    except HTTPException:
+        raise
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================
 # HEALTH CHECK & INFO
 # ============================================
 
 @app.get("/")
 async def root():
+    """Redirect to landing page"""
+    return RedirectResponse(url="/static/index.html")
+
+
+@app.get("/api")
+async def api_info():
     """API information"""
     return {
         "name": "Matrix LaunchPass - Stripe Connect",
         "version": "1.0.0",
         "status": "running",
         "endpoints": {
+            "landing_page": "GET /",
+            "creator_signup": "GET /static/signup.html",
+            "creator_dashboard": "GET /static/dashboard.html",
             "connect_onboard": "POST /connect/onboard",
             "connect_return": "GET /connect/return",
             "connect_refresh": "GET /connect/refresh",
             "connect_webhook": "POST /webhook/stripe/connect",
             "create_checkout": "POST /connect/create-checkout",
+            "create_product": "POST /creators/{creator_id}/products",
+            "list_products": "GET /creators/{creator_id}/products",
+            "get_status": "GET /creators/{creator_id}/status",
             "list_creators": "GET /creators",
             "get_creator": "GET /creators/{creator_id}",
             "creator_login_link": "POST /creators/{creator_id}/generate-login-link",

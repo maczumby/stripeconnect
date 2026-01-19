@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filament Connect - Creator Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 48px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 16px;
+            color: #1a1a1a;
+        }
+
+        .subtitle {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 32px;
+        }
+
+        .features {
+            text-align: left;
+            margin: 32px 0;
+            padding: 24px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+
+        .feature {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .feature:last-child {
+            margin-bottom: 0;
+        }
+
+        .feature-icon {
+            font-size: 24px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .feature-text {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+
+        .feature-desc {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 16px 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 24px;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .info-text {
+            margin-top: 24px;
+            font-size: 14px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🚀</div>
+        <h1>Filament Connect</h1>
+        <p class="subtitle">Monetize your community with Stripe Connect</p>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">💳</div>
+                <div class="feature-text">
+                    <div class="feature-title">Your Own Stripe Account</div>
+                    <div class="feature-desc">Keep control of your money. Filament never holds your funds.</div>
+                </div>
+            </div>
+
+            <div class="feature">
+                <div class="feature-icon">🔗</div>
+                <div class="feature-text">
+                    <div class="feature-title">Connect to Your Loop</div>
+                    <div class="feature-desc">Automatically grant Matrix space access to subscribers.</div>
+                </div>
+            </div>
+
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <div class="feature-text">
+                    <div class="feature-title">Quick Setup</div>
+                    <div class="feature-desc">Get started in minutes. We handle all the payment complexity.</div>
+                </div>
+            </div>
+
+            <div class="feature">
+                <div class="feature-icon">📊</div>
+                <div class="feature-text">
+                    <div class="feature-title">Full Dashboard Access</div>
+                    <div class="feature-desc">Track earnings, manage payouts, and view analytics in Stripe.</div>
+                </div>
+            </div>
+        </div>
+
+        <a href="/static/signup.html" class="cta-button">Get Started</a>
+
+        <p class="info-text">
+            Already connected? <a href="/static/dashboard.html" style="color: #667eea;">Go to Dashboard</a>
+        </p>
+    </div>
+</body>
+</html>

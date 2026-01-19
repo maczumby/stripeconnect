@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creator Signup - Filament Connect</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 48px;
+        }
+
+        .back-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 12px;
+            color: #1a1a1a;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 32px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #1a1a1a;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .helper-text {
+            font-size: 14px;
+            color: #666;
+            margin-top: 6px;
+        }
+
+        .submit-button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .submit-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            display: none;
+        }
+
+        .loading-message {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            display: none;
+        }
+
+        .info-box {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/static/index.html" class="back-link">← Back to Home</a>
+
+        <h1>Connect Your Stripe Account</h1>
+        <p class="subtitle">Get started with Filament Connect in just a few steps</p>
+
+        <div class="info-box">
+            <strong>What happens next?</strong><br>
+            1. Fill out this form<br>
+            2. Connect your Stripe account (or create one)<br>
+            3. Set up your subscription product<br>
+            4. We'll connect it to your Loop within 4 working hours
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+        <div class="loading-message" id="loadingMessage">Creating your account...</div>
+
+        <form id="signupForm">
+            <div class="form-group">
+                <label for="creatorId">Creator ID *</label>
+                <input
+                    type="text"
+                    id="creatorId"
+                    name="creatorId"
+                    required
+                    placeholder="e.g., alice_creator"
+                    pattern="[a-zA-Z0-9_-]+"
+                >
+                <div class="helper-text">Your unique identifier (letters, numbers, underscores, and dashes only)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address *</label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    required
+                    placeholder="your@email.com"
+                >
+                <div class="helper-text">We'll use this for your Stripe account</div>
+            </div>
+
+            <div class="form-group">
+                <label for="name">Your Name</label>
+                <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    placeholder="Jane Doe"
+                >
+                <div class="helper-text">Optional - helps us personalize your experience</div>
+            </div>
+
+            <button type="submit" class="submit-button" id="submitButton">
+                Connect Stripe Account
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById('signupForm');
+        const submitButton = document.getElementById('submitButton');
+        const errorMessage = document.getElementById('errorMessage');
+        const loadingMessage = document.getElementById('loadingMessage');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Get form data
+            const creatorId = document.getElementById('creatorId').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const name = document.getElementById('name').value.trim();
+
+            // Hide error, show loading
+            errorMessage.style.display = 'none';
+            loadingMessage.style.display = 'block';
+            submitButton.disabled = true;
+
+            try {
+                // Call the backend API - Note: we need admin credentials
+                // For MVP, we'll use a simple approach - in production, you'd want proper authentication
+                const response = await fetch('/connect/onboard', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // TODO: In production, implement proper creator authentication
+                        'Authorization': 'Basic ' + btoa('admin:' + prompt('Enter admin password to continue:'))
+                    },
+                    body: JSON.stringify({
+                        creator_id: creatorId,
+                        email: email,
+                        name: name || undefined
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to create account');
+                }
+
+                // Save creator_id to localStorage for dashboard access
+                localStorage.setItem('filament_creator_id', creatorId);
+
+                // Redirect to Stripe onboarding
+                window.location.href = data.onboarding_url;
+
+            } catch (error) {
+                errorMessage.textContent = error.message;
+                errorMessage.style.display = 'block';
+                loadingMessage.style.display = 'none';
+                submitButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
