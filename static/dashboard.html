@@ -318,6 +318,53 @@
                 <a href="#" id="refreshOnboardingLink">Click here to continue onboarding</a>
             </div>
 
+            <!-- Loop Setup -->
+            <div class="card">
+                <h2>🔁 Loop Setup</h2>
+                <p style="color: #666; margin-bottom: 20px;">
+                    Connect your Matrix Space (Loop) to enable automatic subscriber access.
+                </p>
+
+                <div id="loopSetupInstructions" class="alert alert-info">
+                    <strong>📋 Setup Steps:</strong><br><br>
+                    <ol style="margin: 12px 0 12px 20px; line-height: 1.8;">
+                        <li><strong>Create your Loop:</strong> Create a Matrix Space for your community</li>
+                        <li><strong>Invite the Filament bot:</strong> Invite <code>@u_01k8kfsc56kj9che8ew5b9wr59:api.filament.dm</code> to your Space</li>
+                        <li><strong>Make it an admin:</strong> Give the bot admin permissions in your Space settings</li>
+                        <li><strong>Get your Space ID:</strong> In Element, go to Space Settings → Advanced → Internal Space ID (looks like <code>!abc123:matrix.org</code>)</li>
+                        <li><strong>Enter it below</strong></li>
+                    </ol>
+                </div>
+
+                <div class="error-message" id="loopError"></div>
+                <div class="success-message" id="loopSuccess"></div>
+
+                <div class="info-row">
+                    <span class="info-label">Loop ID</span>
+                    <span class="info-value" id="currentLoopId" style="font-family: monospace;">Not set</span>
+                </div>
+
+                <form id="loopForm" style="margin-top: 20px;">
+                    <div class="form-group">
+                        <label for="loopId">Matrix Space ID *</label>
+                        <input
+                            type="text"
+                            id="loopId"
+                            required
+                            placeholder="!abc123:matrix.org"
+                            pattern="!.+:.+"
+                        >
+                        <div class="helper-text">
+                            This is your Matrix Space ID (starts with !)
+                        </div>
+                    </div>
+
+                    <button type="submit" class="button" id="saveLoopButton">
+                        Save Loop ID
+                    </button>
+                </form>
+            </div>
+
             <!-- Product Creation Form -->
             <div class="card" id="productCreationCard">
                 <h2>📦 Create Subscription Product</h2>
@@ -445,6 +492,16 @@
                 document.getElementById('chargesEnabled').textContent = status.charges_enabled ? 'Yes' : 'No';
                 document.getElementById('payoutsEnabled').textContent = status.payouts_enabled ? 'Yes' : 'No';
 
+                // Display Loop ID if set
+                if (status.loop_id) {
+                    document.getElementById('currentLoopId').textContent = status.loop_id;
+                    document.getElementById('currentLoopId').style.color = '#28a745';
+                    document.getElementById('loopId').value = status.loop_id;
+                } else {
+                    document.getElementById('currentLoopId').textContent = 'Not set';
+                    document.getElementById('currentLoopId').style.color = '#999';
+                }
+
                 // Show warning if onboarding incomplete
                 if (!status.charges_enabled) {
                     document.getElementById('incompleteWarning').classList.remove('hidden');
@@ -495,6 +552,53 @@
                     '<p style="color: #c33;">Error loading products</p>';
             }
         }
+
+        // Loop form submission
+        document.getElementById('loopForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const errorDiv = document.getElementById('loopError');
+            const successDiv = document.getElementById('loopSuccess');
+            const submitButton = document.getElementById('saveLoopButton');
+
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+            submitButton.disabled = true;
+
+            try {
+                const loopId = document.getElementById('loopId').value;
+
+                const response = await fetch(`/creators/${creatorId}/loop`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        loop_id: loopId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to save Loop ID');
+                }
+
+                // Show success message
+                successDiv.textContent = data.message;
+                successDiv.style.display = 'block';
+
+                // Update displayed Loop ID
+                document.getElementById('currentLoopId').textContent = loopId;
+                document.getElementById('currentLoopId').style.color = '#28a745';
+
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                submitButton.disabled = false;
+            }
+        });
 
         // Product creation form
         document.getElementById('productForm').addEventListener('submit', async (e) => {

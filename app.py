@@ -195,6 +195,10 @@ def update_creator(creator_id: str, updates: Dict[str, Any]):
             loops_str = ",".join(updates["loops"]) if isinstance(updates["loops"], list) else str(updates["loops"])
             creators_worksheet.update_cell(row_num, 7, loops_str)
 
+        if "loop_id" in updates:
+            # Store loop_id (Matrix space ID) in the loops column
+            creators_worksheet.update_cell(row_num, 7, updates["loop_id"])
+
         # Update timestamp
         creators_worksheet.update_cell(row_num, 9, datetime.utcnow().isoformat())
 
@@ -219,7 +223,15 @@ def get_creator(creator_id: str) -> Optional[Dict[str, Any]]:
         # Parse row data into dict
         # Headers: creator_id, stripe_account_id, email, name, onboarding_complete, charges_enabled, loops, created_at, updated_at
         loops_str = row_data[6] if len(row_data) > 6 else ""
-        loops = [l.strip() for l in loops_str.split(",") if l.strip()] if loops_str else []
+        # If loops_str looks like a space ID (starts with !), treat it as loop_id
+        # Otherwise treat as comma-separated room IDs
+        loop_id = None
+        loops = []
+        if loops_str:
+            if loops_str.startswith("!"):
+                loop_id = loops_str
+            else:
+                loops = [l.strip() for l in loops_str.split(",") if l.strip()]
 
         return {
             "stripe_account_id": row_data[1],
@@ -227,6 +239,7 @@ def get_creator(creator_id: str) -> Optional[Dict[str, Any]]:
             "name": row_data[3] if len(row_data) > 3 else None,
             "onboarding_complete": row_data[4].upper() == "TRUE" if len(row_data) > 4 else False,
             "charges_enabled": row_data[5].upper() == "TRUE" if len(row_data) > 5 else False,
+            "loop_id": loop_id,
             "loops": loops,
         }
 
@@ -248,7 +261,13 @@ def get_creator_by_account(stripe_account_id: str) -> Optional[tuple[str, Dict[s
         # Parse row data
         creator_id = row_data[0]
         loops_str = row_data[6] if len(row_data) > 6 else ""
-        loops = [l.strip() for l in loops_str.split(",") if l.strip()] if loops_str else []
+        loop_id = None
+        loops = []
+        if loops_str:
+            if loops_str.startswith("!"):
+                loop_id = loops_str
+            else:
+                loops = [l.strip() for l in loops_str.split(",") if l.strip()]
 
         creator_info = {
             "stripe_account_id": row_data[1],
@@ -256,6 +275,7 @@ def get_creator_by_account(stripe_account_id: str) -> Optional[tuple[str, Dict[s
             "name": row_data[3] if len(row_data) > 3 else None,
             "onboarding_complete": row_data[4].upper() == "TRUE" if len(row_data) > 4 else False,
             "charges_enabled": row_data[5].upper() == "TRUE" if len(row_data) > 5 else False,
+            "loop_id": loop_id,
             "loops": loops,
         }
 
@@ -275,7 +295,13 @@ def load_creators() -> Dict[str, Any]:
             creator_id = record.get("creator_id")
             if creator_id:
                 loops_str = record.get("loops", "")
-                loops = [l.strip() for l in loops_str.split(",") if l.strip()] if loops_str else []
+                loop_id = None
+                loops = []
+                if loops_str:
+                    if loops_str.startswith("!"):
+                        loop_id = loops_str
+                    else:
+                        loops = [l.strip() for l in loops_str.split(",") if l.strip()]
 
                 creators_dict[creator_id] = {
                     "stripe_account_id": record.get("stripe_account_id"),
@@ -283,6 +309,7 @@ def load_creators() -> Dict[str, Any]:
                     "name": record.get("name"),
                     "onboarding_complete": str(record.get("onboarding_complete", "")).upper() == "TRUE",
                     "charges_enabled": str(record.get("charges_enabled", "")).upper() == "TRUE",
+                    "loop_id": loop_id,
                     "loops": loops,
                 }
 
@@ -954,12 +981,63 @@ async def get_creator_public_status(creator_id: str):
             "onboarding_complete": account.details_submitted,
             "charges_enabled": account.charges_enabled,
             "payouts_enabled": account.payouts_enabled,
-            "stripe_account_id": creator["stripe_account_id"]
+            "stripe_account_id": creator["stripe_account_id"],
+            "loop_id": creator.get("loop_id")
         }
 
     except stripe.error.StripeError as e:
         raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/creators/{creator_id}/loop")
+async def update_creator_loop(creator_id: str, request: Request):
+    """
+    Update the Loop (Matrix Space) ID for a creator.
+
+    POST body:
+    {
+        "loop_id": "!abc123:matrix.org"
+    }
+    """
+    try:
+        creator = get_creator(creator_id)
+        if not creator:
+            raise HTTPException(status_code=404, detail=f"Creator {creator_id} not found")
+
+        data = await request.json()
+        loop_id = data.get("loop_id")
+
+        if not loop_id:
+            raise HTTPException(status_code=400, detail="loop_id is required")
+
+        # Validate that loop_id looks like a Matrix space ID
+        if not loop_id.startswith("!"):
+            raise HTTPException(
+                status_code=400,
+                detail="loop_id must be a valid Matrix Space ID (starts with !)"
+            )
+
+        # Update the creator's loop_id
+        success = update_creator(creator_id, {"loop_id": loop_id})
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update Loop ID")
+
+        print(f"✅ Updated Loop ID for creator {creator_id}: {loop_id}")
+
+        return {
+            "success": True,
+            "creator_id": creator_id,
+            "loop_id": loop_id,
+            "message": "Loop ID updated successfully. Make sure you've invited @u_01k8kfsc56kj9che8ew5b9wr59:api.filament.dm to your Loop and made it an admin!"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error updating Loop ID: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1161,6 +1239,7 @@ async def api_info():
             "create_product": "POST /creators/{creator_id}/products",
             "list_products": "GET /creators/{creator_id}/products",
             "get_status": "GET /creators/{creator_id}/status",
+            "update_loop": "POST /creators/{creator_id}/loop",
             "list_creators": "GET /creators",
             "get_creator": "GET /creators/{creator_id}",
             "creator_login_link": "POST /creators/{creator_id}/generate-login-link",
